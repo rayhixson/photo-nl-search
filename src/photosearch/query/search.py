@@ -31,7 +31,7 @@ def search(conn, embedder: Embedder, filters: QueryFilters, limit: int = 50) -> 
     ).fetchall()
 
     person_ids = _resolve_people(conn, filters.people)
-    people_ok = _photos_with_people(conn, person_ids) if person_ids else None
+    people_ok = _photos_with_people(conn, person_ids) if filters.people else None
 
     results: list[SearchResult] = []
     for r in rows:
