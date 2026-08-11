@@ -31,3 +31,25 @@ class FakeEmbedder:
 @pytest.fixture
 def fake_embedder():
     return FakeEmbedder()
+
+
+from photosearch.faces import Face
+from photosearch.db import FACE_DIM
+
+
+class FakeFaceDetector:
+    def __init__(self, per_image=1):
+        self.per_image = per_image
+
+    def detect(self, img):
+        faces = []
+        for i in range(self.per_image):
+            rng = np.random.default_rng(1000 + i)
+            v = rng.standard_normal(FACE_DIM).astype("float32")
+            faces.append(Face(bbox=(i, i, i + 10, i + 10), embedding=v / np.linalg.norm(v)))
+        return faces
+
+
+@pytest.fixture
+def fake_detector():
+    return FakeFaceDetector()
