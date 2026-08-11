@@ -10,6 +10,10 @@ FACE_DIM = 512
 
 def connect(db_path: Path) -> sqlite3.Connection:
     Path(db_path).parent.mkdir(parents=True, exist_ok=True)
+    # check_same_thread=False: uvicorn/Starlette dispatch sync endpoints on a threadpool,
+    # so the shared connection is touched from multiple threads. Safe here because this is a
+    # single-user home app with effectively serial request access; the background scan-loop
+    # (Task 15) opens its OWN connection. True concurrent writes would need connection-per-thread.
     conn = sqlite3.connect(str(db_path), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.enable_load_extension(True)
