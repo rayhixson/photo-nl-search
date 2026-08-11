@@ -37,28 +37,42 @@ def ingest_photo(path: Path, conn, embedder: Embedder, detector: FaceDetector, t
             thumb = make_thumbnail(img, content_hash, thumb_dir)
             photo_vec = embedder.embed_image(img)
             faces = detector.detect(img)
+        st = path.stat()
     except Exception:
         return None
 
-    st = path.stat()
     pid = content_hash
-    conn.execute(
-        """INSERT OR REPLACE INTO photos
-           (id, path, content_hash, taken_at, gps_lat, gps_lng, camera, width, height, thumb_path, mtime, size)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-        (pid, str(path), content_hash,
-         exif.taken_at.isoformat() if exif.taken_at else None,
-         exif.gps_lat, exif.gps_lng, exif.camera, width, height, str(thumb),
-         st.st_mtime, st.st_size),
-    )
-    conn.execute("DELETE FROM photo_vectors WHERE photo_id = ?", (pid,))
-    conn.execute("INSERT INTO photo_vectors(photo_id, embedding) VALUES (?, ?)",
-                 (pid, photo_vec.tobytes()))
-    for i, face in enumerate(faces):
-        fid = f"{pid}:{i}"
-        conn.execute("INSERT INTO faces(id, photo_id, bbox, person_id) VALUES (?,?,?,NULL)",
-                     (fid, pid, json.dumps(face.bbox)))
-        conn.execute("INSERT INTO face_vectors(face_id, embedding) VALUES (?, ?)",
-                     (fid, face.embedding.tobytes()))
-    conn.commit()
+    try:
+        # Clean up dependents for the old version of this path (different hash)
+        old = conn.execute("SELECT id FROM photos WHERE path = ?", (str(path),)).fetchone()
+        if old:
+            old_pid = old["id"]
+            conn.execute(
+                "DELETE FROM face_vectors WHERE face_id IN (SELECT id FROM faces WHERE photo_id = ?)",
+                (old_pid,),
+            )
+            conn.execute("DELETE FROM faces WHERE photo_id = ?", (old_pid,))
+            conn.execute("DELETE FROM photo_vectors WHERE photo_id = ?", (old_pid,))
+
+        conn.execute(
+            """INSERT OR REPLACE INTO photos
+               (id, path, content_hash, taken_at, gps_lat, gps_lng, camera, width, height, thumb_path, mtime, size)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (pid, str(path), content_hash,
+             exif.taken_at.isoformat() if exif.taken_at else None,
+             exif.gps_lat, exif.gps_lng, exif.camera, width, height, str(thumb),
+             st.st_mtime, st.st_size),
+        )
+        conn.execute("INSERT INTO photo_vectors(photo_id, embedding) VALUES (?, ?)",
+                     (pid, photo_vec.tobytes()))
+        for i, face in enumerate(faces):
+            fid = f"{pid}:{i}"
+            conn.execute("INSERT INTO faces(id, photo_id, bbox, person_id) VALUES (?,?,?,NULL)",
+                         (fid, pid, json.dumps(face.bbox)))
+            conn.execute("INSERT INTO face_vectors(face_id, embedding) VALUES (?, ?)",
+                         (fid, face.embedding.tobytes()))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        return None
     return pid
