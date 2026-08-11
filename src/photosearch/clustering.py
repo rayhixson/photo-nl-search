@@ -5,7 +5,7 @@ from sklearn.cluster import HDBSCAN
 
 def cluster_faces(conn, min_cluster_size: int = 3) -> int:
     rows = list(conn.execute("SELECT face_id, embedding FROM face_vectors"))
-    if not rows:
+    if not rows or len(rows) < min_cluster_size:
         return 0
     face_ids = [r["face_id"] for r in rows]
     vecs = np.stack([np.frombuffer(r["embedding"], dtype="float32") for r in rows])
