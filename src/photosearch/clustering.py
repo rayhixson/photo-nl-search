@@ -2,8 +2,6 @@
 import numpy as np
 from sklearn.cluster import HDBSCAN
 
-from .db import FACE_DIM
-
 
 def cluster_faces(conn, min_cluster_size: int = 3) -> int:
     rows = list(conn.execute("SELECT face_id, embedding FROM face_vectors"))
@@ -12,7 +10,7 @@ def cluster_faces(conn, min_cluster_size: int = 3) -> int:
     face_ids = [r["face_id"] for r in rows]
     vecs = np.stack([np.frombuffer(r["embedding"], dtype="float32") for r in rows])
 
-    labels = HDBSCAN(min_cluster_size=min_cluster_size, metric="euclidean").fit_predict(vecs)
+    labels = HDBSCAN(min_cluster_size=min_cluster_size, metric="euclidean", copy=True).fit_predict(vecs)
 
     # reset prior auto assignments + unnamed people
     conn.execute("UPDATE faces SET person_id = NULL")

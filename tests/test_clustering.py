@@ -26,3 +26,5 @@ def test_cluster_groups_similar_faces(db):
     assert n == 2
     a_ids = {r["person_id"] for r in db.execute("SELECT person_id FROM faces WHERE id LIKE 'a%'")}
     assert len(a_ids) == 1 and None not in a_ids
+    b_ids = {r["person_id"] for r in db.execute("SELECT person_id FROM faces WHERE id LIKE 'b%'")}
+    assert len(b_ids) == 1 and None not in b_ids and b_ids != a_ids
