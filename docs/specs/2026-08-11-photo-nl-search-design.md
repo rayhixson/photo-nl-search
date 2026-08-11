@@ -21,6 +21,7 @@ through a local web UI. All inference runs on-device — no cloud calls.
 | Media scope | Photos only: JPEG / PNG / HEIC |
 | Local LLM runtime | Ollama (small model, e.g. Qwen2.5 3B) |
 | Deployment | Native launch-at-login background service (launchd) |
+| Environment | Native `uv`-managed venv pinned to Python 3.12 — **no Docker**, to preserve Metal/MPS acceleration for MobileCLIP, InsightFace, and Ollama |
 | Database | SQLite (single file) + `sqlite-vec` extension for vectors |
 
 ## Architecture

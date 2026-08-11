@@ -10,9 +10,11 @@
 
 ## Global Constraints
 
-- Python 3.11+ on macOS Apple Silicon; all inference runs locally (no cloud calls).
+- macOS Apple Silicon; all inference runs locally (no cloud calls). No Docker — run natively to keep Metal/MPS acceleration.
+- Environment is a `uv`-managed venv pinned to **Python 3.12** (`uv venv --python 3.12`). The host default Python 3.14 lacks ML-stack wheels; do not use it.
+- **All Python/test commands run inside the venv** — prefix with `uv run` (e.g. `uv run pytest`) or activate `.venv` first. Wherever a step says `pytest` or `python`, it means `uv run pytest` / `uv run python`.
 - Single SQLite file for all data; vectors via the `sqlite-vec` loadable extension.
-- SQLite extension loading must be enabled — use a Python build that allows it (`pip install pysqlite3-binary` or Homebrew Python) if the system driver blocks it.
+- SQLite extension loading must be enabled — the `uv`-managed CPython 3.12 allows it by default; if a step hits `AttributeError: enable_load_extension`, fall back to `pip install pysqlite3-binary`.
 - Photo embedding dimension `PHOTO_DIM = 512`; face embedding dimension `FACE_DIM = 512`. All stored embeddings are float32 and L2-normalized.
 - Media scope: JPEG / PNG / HEIC only.
 - NAS is read-only; never write to share paths.
@@ -98,7 +100,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.23"]
+dev = ["pytest>=8.0", "pytest-asyncio>=0.23", "piexif>=1.1.3"]
 
 [project.scripts]
 photosearch = "photosearch.service:main"
@@ -133,14 +135,19 @@ ollama_model = "qwen2.5:3b"
 scan_interval_s = 900
 ```
 
-- [ ] **Step 4: Install and verify the package imports**
+- [ ] **Step 4: Create the venv and install**
 
-Run: `pip install -e '.[dev]' && python -c "import photosearch"`
+Run: `uv venv --python 3.12 && uv pip install -e '.[dev]'`
+Expected: venv created at `.venv`, install succeeds. (`.venv` is not committed — add it to `.gitignore` if not already ignored.)
+
+- [ ] **Step 5: Verify the package imports**
+
+Run: `uv run python -c "import photosearch"`
 Expected: no error.
 
-- [ ] **Step 5: Checkpoint**
+- [ ] **Step 6: Checkpoint**
 
-Run: `pytest` (0 tests collected is fine at this point; command must exit 0).
+Run: `uv run pytest` (0 tests collected is fine at this point; command must exit 0).
 
 ---
 
@@ -1838,7 +1845,7 @@ Expected: PASS.
 </plist>
 ```
 
-Manual install (documented, not automated): copy the plist to `~/Library/LaunchAgents/`, edit the absolute paths, then `launchctl load ~/Library/LaunchAgents/com.photosearch.plist`. Confirm `http://localhost:8756` responds and the Ollama app/service is running with the configured model pulled (`ollama pull qwen2.5:3b`).
+Manual install (documented, not automated): copy the plist to `~/Library/LaunchAgents/`, edit the absolute paths, then `launchctl load ~/Library/LaunchAgents/com.photosearch.plist`. Confirm `http://localhost:8756` responds and Ollama is installed and running with the configured model pulled (`brew install ollama && ollama serve &` then `ollama pull qwen2.5:3b`). Ollama runs natively (not in a container) so it keeps Metal acceleration. Unit tests mock Ollama, so it is not required until runtime/integration.
 
 - [ ] **Step 6: Checkpoint**
 
