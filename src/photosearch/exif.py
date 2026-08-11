@@ -38,7 +38,10 @@ def extract_exif(img: Image.Image) -> ExifData:
     )
     out.orientation = tags.get("Orientation") if isinstance(tags.get("Orientation"), int) else None
 
-    ifd = exif.get_ifd(ExifTags.IFD.Exif) if hasattr(ExifTags, "IFD") else {}
+    try:
+        ifd = exif.get_ifd(ExifTags.IFD.Exif) if hasattr(ExifTags, "IFD") else {}
+    except Exception:
+        ifd = {}
     dt_raw = ifd.get(ExifTags.Base.DateTimeOriginal) if hasattr(ExifTags, "Base") else None
     if isinstance(dt_raw, bytes):
         dt_raw = dt_raw.decode(errors="ignore")
@@ -53,7 +56,7 @@ def extract_exif(img: Image.Image) -> ExifData:
     except Exception:
         gps = None
     if gps:
-        lat = _to_deg(gps.get(_GPS["GPSLatitude"]), gps.get(_GPS["GPSLatitudeRef"]))
-        lng = _to_deg(gps.get(_GPS["GPSLongitude"]), gps.get(_GPS["GPSLongitudeRef"]))
+        lat = _to_deg(gps.get(_GPS.get("GPSLatitude")), gps.get(_GPS.get("GPSLatitudeRef")))
+        lng = _to_deg(gps.get(_GPS.get("GPSLongitude")), gps.get(_GPS.get("GPSLongitudeRef")))
         out.gps_lat, out.gps_lng = lat, lng
     return out
