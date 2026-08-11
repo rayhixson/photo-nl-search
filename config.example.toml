@@ -1,0 +1,8 @@
+share_paths = ["/Volumes/nas-photos"]
+db_path = "~/.photosearch/photos.db"
+thumb_dir = "~/.photosearch/thumbs"
+clip_model = "MobileCLIP-S1"
+clip_pretrained = "datacompdr"
+ollama_url = "http://localhost:11434"
+ollama_model = "qwen2.5:3b"
+scan_interval_s = 900
