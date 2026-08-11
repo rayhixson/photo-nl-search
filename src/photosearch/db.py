@@ -20,6 +20,8 @@ def connect(db_path: Path) -> sqlite3.Connection:
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
+    # executescript() implicitly commits any pending transaction before running —
+    # do NOT call this mid-transaction or uncommitted work will be silently committed.
     conn.executescript(
         f"""
         CREATE TABLE IF NOT EXISTS photos (
@@ -54,4 +56,3 @@ def init_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT);
         """
     )
-    conn.commit()

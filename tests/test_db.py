@@ -1,39 +1,33 @@
 # tests/test_db.py
-from photosearch import db
+from photosearch import db as db_module
 
 
-def test_connect_loads_sqlite_vec_and_schema(tmp_path):
-    conn = db.connect(tmp_path / "t.db")
-    db.init_schema(conn)
+def test_connect_loads_sqlite_vec_and_schema(db):
     # sqlite-vec is loaded: vec_version() exists
-    (version,) = conn.execute("SELECT vec_version()").fetchone()
+    (version,) = db.execute("SELECT vec_version()").fetchone()
     assert isinstance(version, str)
-    # all expected tables exist
-    names = {r[0] for r in conn.execute(
+    # all expected tables and virtual tables exist
+    names = {r[0] for r in db.execute(
         "SELECT name FROM sqlite_master WHERE type IN ('table','view')"
     )}
-    assert {"photos", "faces", "people", "meta"} <= names
+    assert {"photos", "faces", "people", "meta", "photo_vectors", "face_vectors"} <= names
 
 
-def test_init_schema_is_idempotent(tmp_path):
-    conn = db.connect(tmp_path / "t.db")
-    db.init_schema(conn)
-    db.init_schema(conn)  # must not raise
+def test_init_schema_is_idempotent(db):
+    db_module.init_schema(db)  # must not raise (fixture already called it once)
 
 
-def test_photo_vectors_roundtrip(tmp_path):
+def test_photo_vectors_roundtrip(db):
     import numpy as np
-    conn = db.connect(tmp_path / "t.db")
-    db.init_schema(conn)
-    conn.execute(
+    db.execute(
         "INSERT INTO photos(id, path, content_hash) VALUES (?,?,?)",
         ("p1", "/a.jpg", "h1"),
     )
-    vec = np.ones(db.PHOTO_DIM, dtype="float32")
-    conn.execute(
+    vec = np.ones(db_module.PHOTO_DIM, dtype="float32")
+    db.execute(
         "INSERT INTO photo_vectors(photo_id, embedding) VALUES (?, ?)",
         ("p1", vec.tobytes()),
     )
-    conn.commit()
-    (count,) = conn.execute("SELECT count(*) FROM photo_vectors").fetchone()
+    db.commit()
+    (count,) = db.execute("SELECT count(*) FROM photo_vectors").fetchone()
     assert count == 1
