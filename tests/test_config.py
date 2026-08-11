@@ -16,5 +16,6 @@ def test_load_config_expands_and_parses(tmp_path):
     cfg = load_config(cfg_file)
     assert cfg.share_paths == [Path("/Volumes/nas")]
     assert cfg.db_path == Path.home() / ".photosearch" / "photos.db"
+    assert cfg.thumb_dir == Path.home() / ".photosearch" / "thumbs"
     assert cfg.scan_interval_s == 900
     assert cfg.clip_model == "MobileCLIP-S1"

@@ -20,7 +20,7 @@ def _p(value: str) -> Path:
 
 
 def load_config(path: Path) -> Config:
-    data = tomllib.loads(Path(path).read_text())
+    data = tomllib.load(path.open("rb"))
     return Config(
         share_paths=[_p(s) for s in data["share_paths"]],
         db_path=_p(data["db_path"]),
