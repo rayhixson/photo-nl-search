@@ -2,8 +2,10 @@ import hashlib
 
 import numpy as np
 import pytest
+from PIL import Image
 from photosearch import db as _db
-from photosearch.db import PHOTO_DIM
+from photosearch.db import FACE_DIM, PHOTO_DIM
+from photosearch.faces import Face
 
 
 @pytest.fixture
@@ -33,15 +35,11 @@ def fake_embedder():
     return FakeEmbedder()
 
 
-from photosearch.faces import Face
-from photosearch.db import FACE_DIM
-
-
 class FakeFaceDetector:
     def __init__(self, per_image=1):
         self.per_image = per_image
 
-    def detect(self, img):
+    def detect(self, img: Image.Image) -> list[Face]:
         faces = []
         for i in range(self.per_image):
             rng = np.random.default_rng(1000 + i)
