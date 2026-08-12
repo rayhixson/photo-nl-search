@@ -50,10 +50,26 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
             ).fetchall()
         return [dict(r) for r in rows]
 
+    @app.get("/api/people/{person_id}/photos")
+    def api_person_photos(person_id: int):
+        with _db_lock:
+            rows = conn.execute(
+                """SELECT DISTINCT p.id AS photo_id, p.path AS path,
+                          p.thumb_path AS thumb_path, p.taken_at AS taken_at
+                   FROM faces f JOIN photos p ON p.id = f.photo_id
+                   WHERE f.person_id = ?
+                   ORDER BY p.taken_at DESC""",
+                (person_id,),
+            ).fetchall()
+        return {"results": [dict(r) for r in rows]}
+
     @app.post("/api/people/{person_id}/name", status_code=204)
     def api_name(person_id: int, body: NameBody):
+        # Normalize blank/whitespace to NULL so empty saves clear the name
+        # rather than leaving a "" that clustering treats as a named person.
+        name = body.name.strip() or None
         with _db_lock:
-            conn.execute("UPDATE people SET name = ? WHERE id = ?", (body.name, person_id))
+            conn.execute("UPDATE people SET name = ? WHERE id = ?", (name, person_id))
             conn.commit()
 
     @app.get("/api/status")

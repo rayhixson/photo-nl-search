@@ -43,3 +43,24 @@ def test_search_endpoint(db, tmp_path, monkeypatch):
     app = create_app(db, StubEmbedder(), _config(tmp_path))
     r = TestClient(app).get("/api/search", params={"q": "dog"})
     assert r.status_code == 200 and r.json()["results"][0]["photo_id"] == "d"
+
+
+def test_person_photos_endpoint(db, tmp_path):
+    db.execute("INSERT INTO people(id, name) VALUES (1, 'Ray')")
+    for pid in ("pA", "pB"):
+        db.execute("INSERT INTO photos(id, path, content_hash, thumb_path) VALUES (?,?,?,?)",
+                   (pid, f"/{pid}.jpg", pid, f"/t/{pid}.jpg"))
+    db.execute("INSERT INTO faces(id, photo_id, person_id) VALUES ('f1','pA',1)")
+    db.commit()
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    r = TestClient(app).get("/api/people/1/photos")
+    assert r.status_code == 200
+    assert {x["photo_id"] for x in r.json()["results"]} == {"pA"}
+
+
+def test_empty_name_clears_to_null(db, tmp_path):
+    db.execute("INSERT INTO people(id, name) VALUES (1, 'Ray')")
+    db.commit()
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    assert TestClient(app).post("/api/people/1/name", json={"name": "   "}).status_code == 204
+    assert db.execute("SELECT name FROM people WHERE id=1").fetchone()["name"] is None
