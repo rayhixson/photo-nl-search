@@ -85,6 +85,21 @@ def test_search_default_min_score_zero_keeps_all(db):
     res = search(db, OneHotEmbedder(), QueryFilters(semantic_text="a dog"), limit=10)
     assert {r.photo_id for r in res} == {"dog1", "cat1"}
 
+def test_search_relative_cutoff_adapts_to_top(db):
+    # Graded similarities: keep results within rel_ratio of the top, drop the tail.
+    q = np.zeros(PHOTO_DIM, dtype="float32"); q[0] = 1.0
+    def vec(c):
+        v = np.zeros(PHOTO_DIM, dtype="float32")
+        v[0] = c; v[1] = float((1.0 - c * c) ** 0.5); return v
+    _add_photo(db, "hi", vec(0.90)); _add_photo(db, "mid", vec(0.80)); _add_photo(db, "lo", vec(0.30))
+    db.commit()
+    class QE:
+        def embed_text(self, t): return q
+        def embed_image(self, i): raise NotImplementedError
+    # top score 0.90, rel_ratio 0.75 -> cutoff 0.675: keep hi & mid, drop lo.
+    res = search(db, QE(), QueryFilters(semantic_text="scene"), limit=10, min_score=0.0, rel_ratio=0.75)
+    assert {r.photo_id for r in res} == {"hi", "mid"}
+
 def test_search_bare_name_returns_person_photos_bypassing_threshold(db):
     # A query that is just a known person's name behaves like the People button:
     # returns that person's photos even if they're semantically unrelated.

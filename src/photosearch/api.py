@@ -28,7 +28,10 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
     async def api_search(q: str, limit: int = 50):
         filters = await parse_query(q, config.ollama_url, config.ollama_model)
         with _db_lock:
-            results = search(conn, embedder, filters, limit=limit, min_score=config.min_score)
+            results = search(
+                conn, embedder, filters,
+                limit=limit, min_score=config.min_score, rel_ratio=config.rel_ratio,
+            )
         return {"results": [asdict(r) for r in results]}
 
     @app.get("/api/thumb/{photo_id}")

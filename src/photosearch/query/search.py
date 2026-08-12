@@ -20,6 +20,7 @@ def search(
     filters: QueryFilters,
     limit: int = 50,
     min_score: float = 0.0,
+    rel_ratio: float = 0.0,
 ) -> list[SearchResult]:
     qvec = embedder.embed_text(filters.semantic_text).astype("float32")
     # KNN over a widened candidate pool so post-filters still have results.
@@ -46,6 +47,14 @@ def search(
         name_ids = _resolve_people(conn, [filters.semantic_text]) if filters.semantic_text else []
         people_ok = _photos_with_people(conn, name_ids) if name_ids else None
 
+    # Relevance cutoff for pure-semantic queries. CLIP text→image similarity is
+    # not calibrated across queries ("dog" tops out ~0.24, "person" only ~0.14),
+    # so a single absolute floor either lets junk through or hides real matches.
+    # Anchor to the best match: keep results within `rel_ratio` of the top score,
+    # but never below the absolute `min_score` floor. rel_ratio=0 => pure floor.
+    top_score = (1.0 - (rows[0]["dist"] ** 2) / 2.0) if rows else 0.0
+    cutoff = max(min_score, top_score * rel_ratio)
+
     results: list[SearchResult] = []
     for r in rows:
         # Embeddings are L2-normalized, so cosine sim = 1 - dist^2/2. Higher is
@@ -61,8 +70,8 @@ def search(
             # semantic score (the person match IS the relevance signal).
             if r["pid"] not in people_ok:
                 continue
-        elif score < min_score:
-            # Pure semantic query: stop at the relevance floor (rows sorted).
+        elif score < cutoff:
+            # Pure semantic query: stop at the relevance cutoff (rows sorted).
             break
         results.append(SearchResult(r["pid"], r["path"], r["thumb"], ta, score))
         if len(results) >= limit:
