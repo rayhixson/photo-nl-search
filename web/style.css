@@ -7,7 +7,11 @@ h1 { margin: 0 0 .5rem; font-size: 1.25rem; }
 #status { color: #666; font-size: .85rem; margin-top: .5rem; }
 main { display: flex; gap: 1rem; padding: 1rem; align-items: flex-start; }
 .grid { flex: 1; display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: .5rem; }
-.grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #eee; }
+.grid .cell { display: flex; flex-direction: column; }
+.grid .cell a { display: block; }
+.grid img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 6px; background: #eee; display: block; }
+.reveal { font-size: .72rem; padding: .15rem 0; background: none; border: none; color: #3a6ea5; cursor: pointer; text-align: left; }
+.reveal:hover { text-decoration: underline; }
 #people { width: 240px; }
 .hint { color: #888; font-size: .8rem; margin: .25rem 0 .75rem; }
 .person { margin-bottom: .6rem; }

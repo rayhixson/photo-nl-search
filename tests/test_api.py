@@ -77,6 +77,33 @@ def test_photos_browse_all(db, tmp_path):
     assert {x["photo_id"] for x in r.json()["results"]} == {"a", "b"}
 
 
+def test_photo_original_served(db, tmp_path):
+    orig = tmp_path / "orig.jpg"; orig.write_bytes(b"\xff\xd8\xff original-bytes")
+    db.execute("INSERT INTO photos(id, path, content_hash, thumb_path) VALUES ('o', ?, 'o', '/t/o.jpg')",
+               (str(orig),))
+    db.commit()
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    client = TestClient(app)
+    r = client.get("/api/photo/o")
+    assert r.status_code == 200 and r.content == b"\xff\xd8\xff original-bytes"
+    assert client.get("/api/photo/missing").status_code == 404
+
+
+def test_reveal_in_finder(db, tmp_path, monkeypatch):
+    orig = tmp_path / "orig.jpg"; orig.write_bytes(b"x")
+    db.execute("INSERT INTO photos(id, path, content_hash, thumb_path) VALUES ('o', ?, 'o', '/t/o.jpg')",
+               (str(orig),))
+    db.commit()
+    calls = []
+    import photosearch.api as api_mod
+    monkeypatch.setattr(api_mod.subprocess, "run", lambda *a, **k: calls.append(a[0]))
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    client = TestClient(app)
+    assert client.post("/api/photo/o/reveal").status_code == 204
+    assert calls == [["open", "-R", str(orig)]]
+    assert client.post("/api/photo/missing/reveal").status_code == 404  # 404 before subprocess
+
+
 def test_people_reports_faces_and_photo_counts(db, tmp_path):
     # Two faces in the SAME photo => faces=2 but photos=1 (the "17 vs 3" case).
     db.execute("INSERT INTO people(id, name) VALUES (1, 'Ray')")

@@ -1,3 +1,4 @@
+import subprocess
 import threading
 from dataclasses import asdict
 from pathlib import Path
@@ -39,6 +40,26 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
         if not row or not row["thumb_path"] or not Path(row["thumb_path"]).exists():
             raise HTTPException(404)
         return FileResponse(row["thumb_path"], media_type="image/jpeg")
+
+    def _photo_path(photo_id: str) -> str:
+        with _db_lock:
+            row = conn.execute(
+                "SELECT path FROM photos WHERE id = ?", (photo_id,)
+            ).fetchone()
+        if not row or not row["path"] or not Path(row["path"]).exists():
+            raise HTTPException(404)
+        return row["path"]
+
+    @app.get("/api/photo/{photo_id}")
+    def api_photo(photo_id: str):
+        # Serve the full-resolution original (read-only); media type by extension.
+        return FileResponse(_photo_path(photo_id))
+
+    @app.post("/api/photo/{photo_id}/reveal", status_code=204)
+    def api_reveal(photo_id: str):
+        # Reveal the original in macOS Finder. Path comes from the DB (recorded at
+        # index time), not the request, and is passed as an argv list (no shell).
+        subprocess.run(["open", "-R", _photo_path(photo_id)], check=False)
 
     @app.get("/api/photos")
     def api_photos(limit: int = 500):

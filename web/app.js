@@ -23,12 +23,34 @@ function renderResults(results, heading) {
     return;
   }
   for (const r of results) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+
+    const link = document.createElement("a");
+    link.href = `/api/photo/${r.photo_id}`;   // full-res original, opens in new tab
+    link.target = "_blank";
+    link.rel = "noopener";
     const img = document.createElement("img");
     img.src = `/api/thumb/${r.photo_id}`;
     const score = r.score != null ? `\nscore ${r.score.toFixed(3)}` : "";
     img.title = `${r.path}${score}`;
     img.loading = "lazy";
-    grid.appendChild(img);
+    link.appendChild(img);
+
+    const reveal = document.createElement("button");
+    reveal.type = "button";
+    reveal.className = "reveal";
+    reveal.textContent = "Reveal in Finder";
+    reveal.addEventListener("click", async () => {
+      reveal.textContent = "Revealing…";
+      const resp = await fetch(`/api/photo/${r.photo_id}/reveal`, { method: "POST" });
+      reveal.textContent = resp.ok ? "Revealed ✓" : "Error";
+      setTimeout(() => (reveal.textContent = "Reveal in Finder"), 1200);
+    });
+
+    cell.appendChild(link);
+    cell.appendChild(reveal);
+    grid.appendChild(cell);
   }
 }
 
