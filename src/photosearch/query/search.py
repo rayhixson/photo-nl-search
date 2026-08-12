@@ -14,7 +14,13 @@ class SearchResult:
     score: float
 
 
-def search(conn, embedder: Embedder, filters: QueryFilters, limit: int = 50) -> list[SearchResult]:
+def search(
+    conn,
+    embedder: Embedder,
+    filters: QueryFilters,
+    limit: int = 50,
+    min_score: float = 0.0,
+) -> list[SearchResult]:
     qvec = embedder.embed_text(filters.semantic_text).astype("float32")
     # KNN over a widened candidate pool so post-filters still have results.
     k = max(limit * 5, 50)
@@ -35,6 +41,12 @@ def search(conn, embedder: Embedder, filters: QueryFilters, limit: int = 50) -> 
 
     results: list[SearchResult] = []
     for r in rows:
+        # Embeddings are L2-normalized, so cosine sim = 1 - dist^2/2. Higher is
+        # more relevant (1.0 = identical). Rows are distance-ascending, so once
+        # one falls below the relevance floor, all later ones do too.
+        score = 1.0 - (r["dist"] ** 2) / 2.0
+        if score < min_score:
+            break
         ta = r["taken_at"]
         if filters.date_from and (not ta or ta[:10] < filters.date_from.isoformat()):
             continue
@@ -42,7 +54,7 @@ def search(conn, embedder: Embedder, filters: QueryFilters, limit: int = 50) -> 
             continue
         if people_ok is not None and r["pid"] not in people_ok:
             continue
-        results.append(SearchResult(r["pid"], r["path"], r["thumb"], ta, 1.0 - r["dist"]))
+        results.append(SearchResult(r["pid"], r["path"], r["thumb"], ta, score))
         if len(results) >= limit:
             break
     return results

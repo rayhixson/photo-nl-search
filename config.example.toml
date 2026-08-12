@@ -6,3 +6,7 @@ clip_pretrained = "datacompdr"
 ollama_url = "http://localhost:11434"
 ollama_model = "qwen2.5:3b"
 scan_interval_s = 900
+# Minimum cosine similarity (0-1) for a photo to be returned by search.
+# Higher = stricter (fewer, more relevant results); lower = more recall.
+# ~0.18 separates clear matches from unrelated photos for MobileCLIP.
+min_score = 0.18

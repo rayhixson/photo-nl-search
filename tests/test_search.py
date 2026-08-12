@@ -65,3 +65,22 @@ def test_search_people_known_person_filters_correctly(db):
     f = QueryFilters(semantic_text="dog", people=["Alice"])
     ids = {r.photo_id for r in search(db, OneHotEmbedder(), f, limit=10)}
     assert ids == {"alice_photo"}
+
+def test_search_min_score_drops_low_similarity(db):
+    # dog matches query exactly (cosine 1.0); cat is orthogonal (cosine 0.0).
+    dog = np.zeros(PHOTO_DIM, dtype="float32"); dog[0] = 1.0
+    cat = np.zeros(PHOTO_DIM, dtype="float32"); cat[1] = 1.0
+    _add_photo(db, "dog1", dog); _add_photo(db, "cat1", cat)
+    db.commit()
+    res = search(db, OneHotEmbedder(), QueryFilters(semantic_text="a dog"), limit=10, min_score=0.5)
+    assert {r.photo_id for r in res} == {"dog1"}  # cat (cosine 0) filtered by min_score
+    assert res[0].score > 0.99  # score is now cosine similarity (exact match ~1.0)
+
+def test_search_default_min_score_zero_keeps_all(db):
+    dog = np.zeros(PHOTO_DIM, dtype="float32"); dog[0] = 1.0
+    cat = np.zeros(PHOTO_DIM, dtype="float32"); cat[1] = 1.0
+    _add_photo(db, "dog1", dog); _add_photo(db, "cat1", cat)
+    db.commit()
+    # default min_score=0.0 keeps orthogonal matches (cosine 0.0 is not < 0.0)
+    res = search(db, OneHotEmbedder(), QueryFilters(semantic_text="a dog"), limit=10)
+    assert {r.photo_id for r in res} == {"dog1", "cat1"}

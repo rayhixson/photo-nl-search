@@ -13,6 +13,7 @@ class Config:
     ollama_url: str
     ollama_model: str
     scan_interval_s: int
+    min_score: float = 0.18
 
 
 def _p(value: str) -> Path:
@@ -30,4 +31,5 @@ def load_config(path: Path) -> Config:
         ollama_url=data["ollama_url"],
         ollama_model=data["ollama_model"],
         scan_interval_s=int(data["scan_interval_s"]),
+        min_score=float(data.get("min_score", 0.18)),
     )
