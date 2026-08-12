@@ -27,7 +27,10 @@ class ClipEmbedder:
         )
         self.model = self.model.to(device).eval()
         self.tokenizer = open_clip.get_tokenizer(model_name)
-        assert self.model.visual.output_dim == PHOTO_DIM, "model dim != PHOTO_DIM"
+        # Probe the actual output dim rather than reading model.visual.output_dim,
+        # which timm-backed visual towers (e.g. MobileCLIP) do not expose.
+        dim = self.embed_text("dimension probe").shape[0]
+        assert dim == PHOTO_DIM, f"model embed dim {dim} != PHOTO_DIM {PHOTO_DIM}"
 
     @torch.no_grad()
     def embed_image(self, img: Image.Image) -> np.ndarray:
