@@ -48,7 +48,8 @@ async function loadPeople() {
     const view = document.createElement("button");
     view.type = "button";
     view.className = "person-view";
-    view.textContent = p.name ? `${p.name} (${p.count})` : `Unnamed (${p.count})`;
+    const label = p.photos === 1 ? "1 photo" : `${p.photos} photos`;
+    view.textContent = p.name ? `${p.name} (${label})` : `Unnamed (${label})`;
     view.addEventListener("click", async () => {
       const res = await (await fetch(`/api/people/${p.id}/photos`)).json();
       renderResults(res.results, view.textContent);
@@ -84,10 +85,17 @@ async function doSearch(q) {
   renderResults(res.results, `Results for “${q}”`);
 }
 
+async function browseAll() {
+  const res = await (await fetch("/api/photos")).json();
+  renderResults(res.results, `All photos (${res.results.length})`);
+}
+
 $("#search-form").addEventListener("submit", (e) => {
   e.preventDefault();
   doSearch($("#q").value.trim());
 });
+$("#browse-all").addEventListener("click", browseAll);
 
 loadStatus();
 loadPeople();
+browseAll();

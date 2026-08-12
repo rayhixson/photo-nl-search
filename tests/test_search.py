@@ -84,3 +84,17 @@ def test_search_default_min_score_zero_keeps_all(db):
     # default min_score=0.0 keeps orthogonal matches (cosine 0.0 is not < 0.0)
     res = search(db, OneHotEmbedder(), QueryFilters(semantic_text="a dog"), limit=10)
     assert {r.photo_id for r in res} == {"dog1", "cat1"}
+
+def test_search_bare_name_returns_person_photos_bypassing_threshold(db):
+    # A query that is just a known person's name behaves like the People button:
+    # returns that person's photos even if they're semantically unrelated.
+    vec = np.zeros(PHOTO_DIM, dtype="float32"); vec[0] = 1.0
+    _add_photo(db, "ph1", vec); _add_photo(db, "ph2", vec)
+    db.execute("INSERT INTO people(id, name) VALUES (1, 'Ray')")
+    db.execute("INSERT INTO faces(id, photo_id, person_id) VALUES ('f1', 'ph1', 1)")
+    db.commit()
+    # OneHotEmbedder maps "Ray" to an orthogonal vector (cosine 0 vs the photos);
+    # with min_score=0.9 a pure semantic search would return nothing.
+    f = QueryFilters(semantic_text="Ray")
+    ids = {r.photo_id for r in search(db, OneHotEmbedder(), f, limit=10, min_score=0.9)}
+    assert ids == {"ph1"}

@@ -40,13 +40,25 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
             raise HTTPException(404)
         return FileResponse(row["thumb_path"], media_type="image/jpeg")
 
+    @app.get("/api/photos")
+    def api_photos(limit: int = 500):
+        with _db_lock:
+            rows = conn.execute(
+                """SELECT id AS photo_id, path, thumb_path, taken_at
+                   FROM photos ORDER BY taken_at DESC, path LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return {"results": [dict(r) for r in rows]}
+
     @app.get("/api/people")
     def api_people():
         with _db_lock:
             rows = conn.execute(
-                """SELECT pe.id AS id, pe.name AS name, count(f.id) AS count
+                """SELECT pe.id AS id, pe.name AS name,
+                          count(f.id) AS faces,
+                          count(DISTINCT f.photo_id) AS photos
                    FROM people pe LEFT JOIN faces f ON f.person_id = pe.id
-                   GROUP BY pe.id ORDER BY count DESC"""
+                   GROUP BY pe.id ORDER BY photos DESC"""
             ).fetchall()
         return [dict(r) for r in rows]
 

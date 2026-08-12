@@ -64,3 +64,26 @@ def test_empty_name_clears_to_null(db, tmp_path):
     app = create_app(db, StubEmbedder(), _config(tmp_path))
     assert TestClient(app).post("/api/people/1/name", json={"name": "   "}).status_code == 204
     assert db.execute("SELECT name FROM people WHERE id=1").fetchone()["name"] is None
+
+
+def test_photos_browse_all(db, tmp_path):
+    for pid in ("a", "b"):
+        db.execute("INSERT INTO photos(id, path, content_hash, thumb_path) VALUES (?,?,?,?)",
+                   (pid, f"/{pid}.jpg", pid, f"/t/{pid}.jpg"))
+    db.commit()
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    r = TestClient(app).get("/api/photos")
+    assert r.status_code == 200
+    assert {x["photo_id"] for x in r.json()["results"]} == {"a", "b"}
+
+
+def test_people_reports_faces_and_photo_counts(db, tmp_path):
+    # Two faces in the SAME photo => faces=2 but photos=1 (the "17 vs 3" case).
+    db.execute("INSERT INTO people(id, name) VALUES (1, 'Ray')")
+    db.execute("INSERT INTO photos(id, path, content_hash, thumb_path) VALUES ('pA','/pA.jpg','pA','/t/pA.jpg')")
+    db.execute("INSERT INTO faces(id, photo_id, person_id) VALUES ('f1','pA',1)")
+    db.execute("INSERT INTO faces(id, photo_id, person_id) VALUES ('f2','pA',1)")
+    db.commit()
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    row = TestClient(app).get("/api/people").json()[0]
+    assert row["faces"] == 2 and row["photos"] == 1

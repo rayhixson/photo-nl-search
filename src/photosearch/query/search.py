@@ -36,24 +36,34 @@ def search(
         (qvec.tobytes(), k),
     ).fetchall()
 
-    person_ids = _resolve_people(conn, filters.people)
-    people_ok = _photos_with_people(conn, person_ids) if filters.people else None
+    # Resolve a people filter. Explicit names from the parser are a STRICT
+    # filter: if none exist, the result is empty ("photos of Mom" with no Mom).
+    # Otherwise, if the whole query is itself a known person's name, treat it
+    # like clicking that person in the UI — a bare-name search == the button.
+    if filters.people:
+        people_ok = _photos_with_people(conn, _resolve_people(conn, filters.people))
+    else:
+        name_ids = _resolve_people(conn, [filters.semantic_text]) if filters.semantic_text else []
+        people_ok = _photos_with_people(conn, name_ids) if name_ids else None
 
     results: list[SearchResult] = []
     for r in rows:
         # Embeddings are L2-normalized, so cosine sim = 1 - dist^2/2. Higher is
-        # more relevant (1.0 = identical). Rows are distance-ascending, so once
-        # one falls below the relevance floor, all later ones do too.
+        # more relevant (1.0 = identical). Rows are distance-ascending.
         score = 1.0 - (r["dist"] ** 2) / 2.0
-        if score < min_score:
-            break
         ta = r["taken_at"]
         if filters.date_from and (not ta or ta[:10] < filters.date_from.isoformat()):
             continue
         if filters.date_to and (not ta or ta[:10] > filters.date_to.isoformat()):
             continue
-        if people_ok is not None and r["pid"] not in people_ok:
-            continue
+        if people_ok is not None:
+            # Scoped to a person: include all their photos regardless of the
+            # semantic score (the person match IS the relevance signal).
+            if r["pid"] not in people_ok:
+                continue
+        elif score < min_score:
+            # Pure semantic query: stop at the relevance floor (rows sorted).
+            break
         results.append(SearchResult(r["pid"], r["path"], r["thumb"], ta, score))
         if len(results) >= limit:
             break
