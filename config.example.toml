@@ -1,0 +1,16 @@
+share_paths = ["/Volumes/nas-photos"]
+db_path = "~/.photosearch/photos.db"
+thumb_dir = "~/.photosearch/thumbs"
+clip_model = "MobileCLIP-S1"
+clip_pretrained = "datacompdr"
+ollama_url = "http://localhost:11434"
+ollama_model = "qwen2.5:3b"
+scan_interval_s = 900
+# Relevance cutoff for semantic search. CLIP text→image similarity isn't
+# calibrated across queries, so the cutoff is adaptive: a photo is kept if its
+# cosine score is >= max(min_score, top_score * rel_ratio) for that query.
+# min_score = absolute floor (kills clear junk); rel_ratio = how close to the
+# best match a result must be (higher = stricter). A person-name query bypasses
+# this and returns all of that person's photos.
+min_score = 0.10
+rel_ratio = 0.75

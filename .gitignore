@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# SDD scratch (subagent-driven-development workspace)
+.superpowers/
+
+# Local data (defaults live under ~/.photosearch, but ignore if placed in-repo)
+*.db
+*.db-*
+thumbs/
+
+# macOS
+.DS_Store

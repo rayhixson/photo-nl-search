@@ -1,0 +1,20 @@
+<!-- com.photosearch.plist -> copy to ~/Library/LaunchAgents/ and edit paths -->
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.photosearch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/ABSOLUTE/PATH/TO/venv/bin/photosearch</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PHOTOSEARCH_CONFIG</key><string>/Users/YOU/.photosearch/config.toml</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>/Users/YOU/.photosearch/out.log</string>
+  <key>StandardErrorPath</key><string>/Users/YOU/.photosearch/err.log</string>
+</dict>
+</plist>

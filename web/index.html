@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Photo Search</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Photo Search</h1>
+    <form id="search-form">
+      <input id="q" type="search" placeholder="e.g. my dog at the beach with Mom last summer" autofocus />
+      <button type="submit">Search</button>
+      <button id="browse-all" type="button">Browse all</button>
+    </form>
+    <div id="status"></div>
+  </header>
+  <main>
+    <section id="results" class="grid"></section>
+    <aside id="people"></aside>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

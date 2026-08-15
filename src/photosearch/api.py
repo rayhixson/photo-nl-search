@@ -1,0 +1,126 @@
+import subprocess
+import threading
+from dataclasses import asdict
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from .config import Config
+from .embedder import Embedder
+from .query.parser import parse_query
+from .query.search import search
+
+_WEB = Path(__file__).resolve().parent.parent.parent / "web"
+
+
+class NameBody(BaseModel):
+    name: str
+
+
+def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
+    app = FastAPI(title="photosearch")
+    _db_lock = threading.Lock()
+
+    @app.get("/api/search")
+    async def api_search(q: str, limit: int = 50):
+        filters = await parse_query(q, config.ollama_url, config.ollama_model)
+        with _db_lock:
+            results = search(
+                conn, embedder, filters,
+                limit=limit, min_score=config.min_score, rel_ratio=config.rel_ratio,
+            )
+        return {"results": [asdict(r) for r in results]}
+
+    @app.get("/api/thumb/{photo_id}")
+    def api_thumb(photo_id: str):
+        with _db_lock:
+            row = conn.execute(
+                "SELECT thumb_path FROM photos WHERE id = ?", (photo_id,)
+            ).fetchone()
+        if not row or not row["thumb_path"] or not Path(row["thumb_path"]).exists():
+            raise HTTPException(404)
+        return FileResponse(row["thumb_path"], media_type="image/jpeg")
+
+    def _photo_path(photo_id: str) -> str:
+        with _db_lock:
+            row = conn.execute(
+                "SELECT path FROM photos WHERE id = ?", (photo_id,)
+            ).fetchone()
+        if not row or not row["path"] or not Path(row["path"]).exists():
+            raise HTTPException(404)
+        return row["path"]
+
+    @app.get("/api/photo/{photo_id}")
+    def api_photo(photo_id: str):
+        # Serve the full-resolution original (read-only); media type by extension.
+        return FileResponse(_photo_path(photo_id))
+
+    @app.post("/api/photo/{photo_id}/reveal", status_code=204)
+    def api_reveal(photo_id: str):
+        # Reveal the original in macOS Finder. Path comes from the DB (recorded at
+        # index time), not the request, and is passed as an argv list (no shell).
+        subprocess.run(["open", "-R", _photo_path(photo_id)], check=False)
+
+    @app.get("/api/photos")
+    def api_photos(limit: int = 500):
+        with _db_lock:
+            rows = conn.execute(
+                """SELECT id AS photo_id, path, thumb_path, taken_at
+                   FROM photos ORDER BY taken_at DESC, path LIMIT ?""",
+                (limit,),
+            ).fetchall()
+        return {"results": [dict(r) for r in rows]}
+
+    @app.get("/api/people")
+    def api_people():
+        with _db_lock:
+            rows = conn.execute(
+                """SELECT pe.id AS id, pe.name AS name,
+                          count(f.id) AS faces,
+                          count(DISTINCT f.photo_id) AS photos
+                   FROM people pe LEFT JOIN faces f ON f.person_id = pe.id
+                   GROUP BY pe.id ORDER BY photos DESC"""
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    @app.get("/api/people/{person_id}/photos")
+    def api_person_photos(person_id: int):
+        with _db_lock:
+            rows = conn.execute(
+                """SELECT DISTINCT p.id AS photo_id, p.path AS path,
+                          p.thumb_path AS thumb_path, p.taken_at AS taken_at
+                   FROM faces f JOIN photos p ON p.id = f.photo_id
+                   WHERE f.person_id = ?
+                   ORDER BY p.taken_at DESC""",
+                (person_id,),
+            ).fetchall()
+        return {"results": [dict(r) for r in rows]}
+
+    @app.post("/api/people/{person_id}/name", status_code=204)
+    def api_name(person_id: int, body: NameBody):
+        # Normalize blank/whitespace to NULL so empty saves clear the name
+        # rather than leaving a "" that clustering treats as a named person.
+        name = body.name.strip() or None
+        with _db_lock:
+            conn.execute("UPDATE people SET name = ? WHERE id = ?", (name, person_id))
+            conn.commit()
+
+    @app.get("/api/status")
+    def api_status():
+        with _db_lock:
+            def count(t):
+                return conn.execute(f"SELECT count(*) FROM {t}").fetchone()[0]
+            last = conn.execute("SELECT value FROM meta WHERE key = 'last_scan'").fetchone()
+            return {
+                "photos": count("photos"),
+                "faces": count("faces"),
+                "people": count("people"),
+                "last_scan": last["value"] if last else None,
+            }
+
+    if _WEB.exists():
+        app.mount("/", StaticFiles(directory=_WEB, html=True), name="web")
+    return app
