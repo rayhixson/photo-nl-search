@@ -1,4 +1,9 @@
 const $ = (sel) => document.querySelector(sel);
+const PER_PAGE = 100;
+
+// Remembers the current result view so the pager can re-fetch the same query
+// at a different offset. `url` is the endpoint WITHOUT limit/offset.
+let currentView = { url: "/api/photos", label: "All photos" };
 
 async function loadStatus() {
   const s = await (await fetch("/api/status")).json();
@@ -7,21 +12,55 @@ async function loadStatus() {
     (s.last_scan ? ` · last scan ${s.last_scan}` : "");
 }
 
-function renderResults(results, heading) {
+async function loadView(url, label, offset = 0) {
+  currentView = { url, label };
+  const sep = url.includes("?") ? "&" : "?";
+  const data = await (await fetch(`${url}${sep}limit=${PER_PAGE}&offset=${offset}`)).json();
+  renderResults(data, label);
+}
+
+function makePager(data) {
+  const { total = 0, offset = 0, limit = PER_PAGE } = data;
+  const pager = document.createElement("div");
+  pager.className = "pager";
+  const from = total ? offset + 1 : 0;
+  const to = Math.min(offset + limit, total);
+
+  const prev = document.createElement("button");
+  prev.type = "button"; prev.textContent = "‹ Prev";
+  prev.disabled = offset <= 0;
+  prev.onclick = () => loadView(currentView.url, currentView.label, Math.max(0, offset - limit));
+
+  const info = document.createElement("span");
+  info.textContent = `${from}–${to} of ${total}`;
+
+  const next = document.createElement("button");
+  next.type = "button"; next.textContent = "Next ›";
+  next.disabled = offset + limit >= total;
+  next.onclick = () => loadView(currentView.url, currentView.label, offset + limit);
+
+  pager.append(prev, info, next);
+  return pager;
+}
+
+function renderResults(data, heading) {
+  const results = data.results || [];
   const grid = $("#results");
   grid.innerHTML = "";
-  if (heading) {
-    const h = document.createElement("div");
-    h.className = "results-heading";
-    h.textContent = heading;
-    grid.appendChild(h);
-  }
+
+  const head = document.createElement("div");
+  head.className = "results-heading";
+  head.textContent = heading;
+  grid.appendChild(head);
+  grid.appendChild(makePager(data));
+
   if (!results.length) {
     const empty = document.createElement("div");
     empty.textContent = "No matches.";
     grid.appendChild(empty);
     return;
   }
+
   for (const r of results) {
     const cell = document.createElement("div");
     cell.className = "cell";
@@ -52,6 +91,8 @@ function renderResults(results, heading) {
     cell.appendChild(reveal);
     grid.appendChild(cell);
   }
+
+  grid.appendChild(makePager(data)); // bottom pager too
 }
 
 async function loadPeople() {
@@ -71,11 +112,10 @@ async function loadPeople() {
     view.type = "button";
     view.className = "person-view";
     const label = p.photos === 1 ? "1 photo" : `${p.photos} photos`;
-    view.textContent = p.name ? `${p.name} (${label})` : `Unnamed (${label})`;
-    view.addEventListener("click", async () => {
-      const res = await (await fetch(`/api/people/${p.id}/photos`)).json();
-      renderResults(res.results, view.textContent);
-    });
+    const heading = p.name ? `${p.name} (${label})` : `Unnamed (${label})`;
+    view.textContent = heading;
+    view.addEventListener("click", () =>
+      loadView(`/api/people/${p.id}/photos`, heading, 0));
 
     const input = document.createElement("input");
     input.value = p.name || "";
@@ -101,23 +141,17 @@ async function loadPeople() {
   }
 }
 
-async function doSearch(q) {
+function doSearch(q) {
   if (!q) return;
-  const res = await (await fetch(`/api/search?q=${encodeURIComponent(q)}`)).json();
-  renderResults(res.results, `Results for “${q}”`);
-}
-
-async function browseAll() {
-  const res = await (await fetch("/api/photos")).json();
-  renderResults(res.results, `All photos (${res.results.length})`);
+  loadView(`/api/search?q=${encodeURIComponent(q)}`, `Results for “${q}”`, 0);
 }
 
 $("#search-form").addEventListener("submit", (e) => {
   e.preventDefault();
   doSearch($("#q").value.trim());
 });
-$("#browse-all").addEventListener("click", browseAll);
+$("#browse-all").addEventListener("click", () => loadView("/api/photos", "All photos", 0));
 
 loadStatus();
 loadPeople();
-browseAll();
+loadView("/api/photos", "All photos", 0);

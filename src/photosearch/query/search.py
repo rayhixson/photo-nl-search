@@ -24,7 +24,9 @@ def search(
 ) -> list[SearchResult]:
     qvec = embedder.embed_text(filters.semantic_text).astype("float32")
     # KNN over a widened candidate pool so post-filters still have results.
-    k = max(limit * 5, 50)
+    # sqlite-vec caps k at 4096; the adaptive cutoff means relevant results are
+    # always among the nearest, so this pool is more than enough.
+    k = min(max(limit * 5, 50), 4096)
     rows = conn.execute(
         """
         SELECT pv.photo_id AS pid, pv.distance AS dist,
@@ -74,9 +76,7 @@ def search(
             # Pure semantic query: stop at the relevance cutoff (rows sorted).
             break
         results.append(SearchResult(r["pid"], r["path"], r["thumb"], ta, score))
-        if len(results) >= limit:
-            break
-    return results
+    return results[:limit]
 
 
 def _resolve_people(conn, names: list[str]) -> list[int]:

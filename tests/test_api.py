@@ -104,6 +104,40 @@ def test_reveal_in_finder(db, tmp_path, monkeypatch):
     assert client.post("/api/photo/missing/reveal").status_code == 404  # 404 before subprocess
 
 
+def test_photos_pagination(db, tmp_path):
+    for i in range(3):
+        pid = f"p{i}"
+        db.execute("INSERT INTO photos(id, path, content_hash, thumb_path, taken_at) VALUES (?,?,?,?,?)",
+                   (pid, f"/{pid}.jpg", pid, f"/t/{pid}.jpg", f"2024-01-0{i+1}T00:00:00"))
+    db.commit()
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    c = TestClient(app)
+    r1 = c.get("/api/photos", params={"limit": 2, "offset": 0}).json()
+    assert r1["total"] == 3 and len(r1["results"]) == 2 and r1["offset"] == 0 and r1["limit"] == 2
+    r2 = c.get("/api/photos", params={"limit": 2, "offset": 2}).json()
+    assert r2["total"] == 3 and len(r2["results"]) == 1
+    ids1 = {x["photo_id"] for x in r1["results"]}
+    ids2 = {x["photo_id"] for x in r2["results"]}
+    assert ids1.isdisjoint(ids2) and len(ids1 | ids2) == 3  # no overlap, full coverage
+
+
+def test_search_paginates_with_total(db, tmp_path, monkeypatch):
+    dog = np.zeros(PHOTO_DIM, dtype="float32"); dog[0] = 1.0
+    for i in range(2):
+        db.execute("INSERT INTO photos(id, path, content_hash, thumb_path) VALUES (?,?,?,?)",
+                   (f"d{i}", f"/d{i}.jpg", f"d{i}", f"/t/d{i}.jpg"))
+        db.execute("INSERT INTO photo_vectors(photo_id, embedding) VALUES (?, ?)", (f"d{i}", dog.tobytes()))
+    db.commit()
+    import photosearch.api as api_mod
+    async def fake_parse(text, url, model, client=None):
+        from photosearch.query.parser import QueryFilters
+        return QueryFilters(semantic_text=text)
+    monkeypatch.setattr(api_mod, "parse_query", fake_parse)
+    app = create_app(db, StubEmbedder(), _config(tmp_path))
+    r = TestClient(app).get("/api/search", params={"q": "dog", "limit": 1, "offset": 0}).json()
+    assert r["total"] == 2 and len(r["results"]) == 1 and r["limit"] == 1
+
+
 def test_people_reports_faces_and_photo_counts(db, tmp_path):
     # Two faces in the SAME photo => faces=2 but photos=1 (the "17 vs 3" case).
     db.execute("INSERT INTO people(id, name) VALUES (1, 'Ray')")

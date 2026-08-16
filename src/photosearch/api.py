@@ -25,14 +25,16 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
     _db_lock = threading.Lock()
 
     @app.get("/api/search")
-    async def api_search(q: str, limit: int = 50):
+    async def api_search(q: str, limit: int = 100, offset: int = 0):
         filters = await parse_query(q, config.ollama_url, config.ollama_model)
         with _db_lock:
-            results = search(
+            ranked = search(
                 conn, embedder, filters,
-                limit=limit, min_score=config.min_score, rel_ratio=config.rel_ratio,
+                limit=4096, min_score=config.min_score, rel_ratio=config.rel_ratio,
             )
-        return {"results": [asdict(r) for r in results]}
+        page = ranked[offset:offset + limit]
+        return {"results": [asdict(r) for r in page], "total": len(ranked),
+                "offset": offset, "limit": limit}
 
     @app.get("/api/thumb/{photo_id}")
     def api_thumb(photo_id: str):
@@ -65,14 +67,16 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
         subprocess.run(["open", "-R", _photo_path(photo_id)], check=False)
 
     @app.get("/api/photos")
-    def api_photos(limit: int = 500):
+    def api_photos(limit: int = 100, offset: int = 0):
         with _db_lock:
+            total = conn.execute("SELECT count(*) FROM photos").fetchone()[0]
             rows = conn.execute(
                 """SELECT id AS photo_id, path, thumb_path, taken_at
-                   FROM photos ORDER BY taken_at DESC, path LIMIT ?""",
-                (limit,),
+                   FROM photos ORDER BY taken_at DESC, path LIMIT ? OFFSET ?""",
+                (limit, offset),
             ).fetchall()
-        return {"results": [dict(r) for r in rows]}
+        return {"results": [dict(r) for r in rows], "total": total,
+                "offset": offset, "limit": limit}
 
     @app.get("/api/people")
     def api_people():
@@ -87,17 +91,22 @@ def create_app(conn, embedder: Embedder, config: Config) -> FastAPI:
         return [dict(r) for r in rows]
 
     @app.get("/api/people/{person_id}/photos")
-    def api_person_photos(person_id: int):
+    def api_person_photos(person_id: int, limit: int = 100, offset: int = 0):
         with _db_lock:
+            total = conn.execute(
+                "SELECT count(DISTINCT photo_id) FROM faces WHERE person_id = ?",
+                (person_id,),
+            ).fetchone()[0]
             rows = conn.execute(
                 """SELECT DISTINCT p.id AS photo_id, p.path AS path,
                           p.thumb_path AS thumb_path, p.taken_at AS taken_at
                    FROM faces f JOIN photos p ON p.id = f.photo_id
                    WHERE f.person_id = ?
-                   ORDER BY p.taken_at DESC""",
-                (person_id,),
+                   ORDER BY p.taken_at DESC LIMIT ? OFFSET ?""",
+                (person_id, limit, offset),
             ).fetchall()
-        return {"results": [dict(r) for r in rows]}
+        return {"results": [dict(r) for r in rows], "total": total,
+                "offset": offset, "limit": limit}
 
     @app.post("/api/people/{person_id}/name", status_code=204)
     def api_name(person_id: int, body: NameBody):
