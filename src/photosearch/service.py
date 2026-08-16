@@ -54,7 +54,7 @@ def main() -> None:
     conn = connect(config.db_path)
     init_schema(conn)
     embedder = ClipEmbedder(config.clip_model, config.clip_pretrained)
-    detector = InsightFaceDetector()
+    detector = InsightFaceDetector(min_score=config.face_min_score, min_size=config.face_min_size)
 
     threading.Thread(target=_scan_loop, args=(config, embedder, detector), daemon=True).start()
     app = create_app(conn, embedder, config)

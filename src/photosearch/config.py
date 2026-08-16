@@ -15,6 +15,8 @@ class Config:
     scan_interval_s: int
     min_score: float = 0.10
     rel_ratio: float = 0.75
+    face_min_score: float = 0.6
+    face_min_size: int = 50
 
 
 def _p(value: str) -> Path:
@@ -34,4 +36,6 @@ def load_config(path: Path) -> Config:
         scan_interval_s=int(data["scan_interval_s"]),
         min_score=float(data.get("min_score", 0.10)),
         rel_ratio=float(data.get("rel_ratio", 0.75)),
+        face_min_score=float(data.get("face_min_score", 0.6)),
+        face_min_size=int(data.get("face_min_size", 50)),
     )

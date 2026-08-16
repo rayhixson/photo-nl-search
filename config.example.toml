@@ -14,3 +14,9 @@ scan_interval_s = 900
 # this and returns all of that person's photos.
 min_score = 0.10
 rel_ratio = 0.75
+# Face-detection filters — drop false/low-quality faces so they don't pollute
+# people clusters. face_min_score = InsightFace confidence floor (0-1; real
+# faces ~0.7+, false positives like headlights/murals score lower).
+# face_min_size = minimum face box side in pixels (drops tiny background faces).
+face_min_score = 0.6
+face_min_size = 50
